@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Zip original
+*.zip
+
+# Logs
+*.log
+
+# Debug/test files (not needed in production)
+debug_extraction.py
+final_test.py
+inspect_html.py
+inspect_table_7.py
+test_ssl_fix.py
+teste_processos.py
+*.html
