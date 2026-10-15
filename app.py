@@ -1,7 +1,10 @@
+import json
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import time
 from inpi_engine import INPIEngine
+from inpi_entrada import preparar_entradas, resumo_entradas
 import io
 
 # ─── Page Config ───
@@ -20,26 +23,73 @@ if "query_done" not in st.session_state:
 if "reset_counter" not in st.session_state:
     st.session_state.reset_counter = 0
 
-# ─── Status Semaphore Function ───
+# ─── Status (semáforo) ───
+# Ícone + nome da categoria, para a coluna se explicar sozinha (dispensa legenda)
+STATUS_ANDAMENTO = "✅ Em andamento"
+STATUS_VIGOR = "®️ Registro em vigor"
+STATUS_ENCERRADO = "❌ Encerrado"
+STATUS_ATENCAO = "🟡 Atenção"
+STATUS_OUTROS = "⚪ Outros"
+STATUS_ERRO = "⚠️ Erro"
+STATUS_REPETIDO = "🔁 Repetido"
+
+AJUDA_STATUS = (
+    "✅ Em andamento: aguardando exame ou deferido · ®️ Registro em vigor · "
+    "❌ Encerrado: indeferido, extinto, arquivado ou nulidade · 🟡 Atenção: oposição ou sobrestado · "
+    "⚪ Outros · ⚠️ Erro: de preenchimento ou na consulta (veja a coluna observacao) · "
+    "🔁 Repetido: consultado na primeira ocorrência"
+)
+
+
 def get_status_indicator(situacao):
-    """Returns a semaphore emoji based on the situação field."""
+    """Classifica a situação do processo (regras em ordem de prioridade)."""
     if not situacao or not isinstance(situacao, str):
-        return "⚪"
+        return STATUS_OUTROS
     sit_lower = situacao.lower()
     if "indeferid" in sit_lower:
-        return "❌"
+        return STATUS_ENCERRADO
     elif "em vigor" in sit_lower:
-        return "®️"
+        return STATUS_VIGOR
     elif "aguardando" in sit_lower:
-        return "✅"
+        return STATUS_ANDAMENTO
     elif "extint" in sit_lower or "arquivad" in sit_lower or "nulidade" in sit_lower:
-        return "❌"
+        return STATUS_ENCERRADO
     elif "deferido" in sit_lower and "indeferid" not in sit_lower:
-        return "✅"
+        return STATUS_ANDAMENTO
     elif "oposição" in sit_lower or "sobrestado" in sit_lower:
-        return "🟡"
+        return STATUS_ATENCAO
     else:
-        return "⚪"
+        return STATUS_OUTROS
+
+
+def botao_copiar(texto):
+    """Botão que copia o texto para a área de transferência, no mesmo estilo dos botões de download."""
+    texto_js = json.dumps(texto).replace("</", "<\\/")
+    components.html(f"""
+    <style>
+      body {{ margin: 0; font-family: 'Inter', 'Source Sans Pro', sans-serif; }}
+      button {{ width: 100%; height: 40px; background: white; color: #0F4C81; border: 2px solid #0F4C81;
+               border-radius: 10px; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: all .2s; }}
+      button:hover {{ background: #0F4C81; color: white; }}
+    </style>
+    <button id="copiar">📋 Copiar tabela</button>
+    <script>
+      const texto = {texto_js};
+      const botao = document.getElementById("copiar");
+      function avisar(msg) {{ botao.textContent = msg; setTimeout(() => botao.textContent = "📋 Copiar tabela", 2000); }}
+      function alternativo() {{
+        const area = document.createElement("textarea");
+        area.value = texto; document.body.appendChild(area); area.select();
+        const ok = document.execCommand("copy"); area.remove();
+        avisar(ok ? "✅ Copiado!" : "❌ Não foi possível copiar");
+      }}
+      botao.addEventListener("click", () => {{
+        if (navigator.clipboard && window.isSecureContext) {{
+          navigator.clipboard.writeText(texto).then(() => avisar("✅ Copiado!")).catch(alternativo);
+        }} else {{ alternativo(); }}
+      }});
+    </script>
+    """, height=44)
 
 # ─── Custom CSS ───
 st.markdown("""
@@ -455,7 +505,7 @@ st.markdown("""
 
 tab1, tab2 = st.tabs(["📄 UPLOAD EXCEL", "📋 COLAR LISTA DE PROCESSOS"])
 
-process_ids = []
+entradas = []   # pares (linha de origem, valor como foi digitado)
 
 with tab1:
     st.markdown("")
@@ -474,12 +524,8 @@ with tab1:
                 df_input.columns,
                 help="Escolha a coluna que contém os números de processo do INPI."
             )
-            for val in df_input[column_name].dropna():
-                clean_id = "".join(filter(str.isdigit, str(val)))
-                if clean_id:
-                    process_ids.append(clean_id)
-            if process_ids:
-                st.info(f"🔢 **{len(process_ids)} processos** identificados na coluna selecionada.")
+            # linha = número da linha no Excel (o cabeçalho ocupa a linha 1)
+            entradas = [(idx + 2, val) for idx, val in df_input[column_name].dropna().items()]
         except Exception as e:
             st.error(f"❌ Erro ao ler o arquivo Excel: {e}")
 
@@ -488,21 +534,28 @@ with tab2:
     text_input = st.text_area(
         "Cole abaixo a lista de processos (um por linha):",
         height=200,
-        placeholder="Cole aqui os números dos processos, um por linha:\n\n932062393\n932062598\n932062717\n...",
-        help="Você pode copiar diretamente de uma planilha Excel — cole os valores aqui.",
+        placeholder="Cole aqui os números dos processos, um por linha:\n\n9876541**\n9876542**\n9876543**\n...",
+        help="Você pode copiar diretamente de uma planilha Excel. Depois de colar, clique em CONSULTAR PROCESSOS.",
         key=f"text_area_{st.session_state.reset_counter}"
     )
     if text_input:
-        lines = text_input.split("\n")
-        for line in lines:
-            clean_id = "".join(filter(str.isdigit, line.strip()))
-            if clean_id:
-                process_ids.append(clean_id)
-        if process_ids:
-            st.info(f"🔢 **{len(process_ids)} processos** identificados na lista.")
+        entradas = [(i + 1, linha) for i, linha in enumerate(text_input.split("\n"))]
+
+# ─── Verificação das entradas (tipagem e duplicados), antes de qualquer consulta ───
+itens = preparar_entradas(entradas)
+contagem = resumo_entradas(itens)
+process_ids = [it["numero_processo"] for it in itens if it["consultar"]]
+if itens:
+    aviso = f"🔢 **{contagem['total']} entradas** · para consultar: **{contagem['consultar']}**"
+    if contagem["repetidos"] or contagem["invalidos"]:
+        aviso += (f" · repetidas: **{contagem['repetidos']}** · com erro de preenchimento: **{contagem['invalidos']}**. "
+                  "Repetidas e com erro não são consultadas, mas ficam na planilha de saída, na mesma linha, com o motivo")
+    st.info(aviso + ".")
 
 # ─── Query Section ───
-if process_ids:
+# Sempre visível: o texto colado só é registrado quando a caixa perde o foco,
+# e clicar no botão já faz isso, então o usuário pode colar e consultar direto.
+if not st.session_state.query_done:
     st.markdown("---")
 
     # Compact config row
@@ -523,66 +576,104 @@ if process_ids:
 
     st.markdown("")
 
-    if st.button("CONSULTAR PROCESSOS", use_container_width=True, type="primary"):
+    consultar = st.button("CONSULTAR PROCESSOS", use_container_width=True, type="primary")
+    if consultar and not itens:
+        st.warning("📋 Cole a lista de processos ou envie uma planilha antes de consultar.")
+    elif consultar:
         # Progress section
         progress_bar = st.progress(0)
         status_text = st.empty()
 
-        results = []
         engine = INPIEngine()
-
-        status_text.info("🔄 Inicializando sessão segura no INPI...")
-        if engine.initialize_session():
+        conectado = True
+        if process_ids:   # se nenhuma entrada for válida, não há o que consultar no INPI
+            status_text.info("🔄 Conectando ao INPI...")
+            conectado = engine.initialize_session()
+        if conectado:
+            if engine.modo == "relay":
+                st.caption("🌎 Conectado via relay em São Paulo: o INPI recusa conexões de servidores fora do Brasil.")
             total = len(process_ids)
-            for i, pid in enumerate(process_ids):
-                status_text.info(f"🔍 Consultando **{i+1}/{total}**: Processo `{pid}`")
-                detail = engine.get_details(pid)
-
-                if "ID_Pesquisado" in detail:
-                    del detail["ID_Pesquisado"]
-
-                results.append(detail)
-                progress_bar.progress((i + 1) / total)
-                if i < total - 1:
-                    time.sleep(delay)
+            feitos = 0
+            results, tipos = [], []
+            # Todas as entradas saem na planilha, na ordem original; só as válidas e inéditas são consultadas
+            for it in itens:
+                linha = {"linha": it["linha"], "entrada": it["entrada"],
+                         "numero_processo": it["numero_processo"], "observacao": it["observacao"]}
+                tipo = it["tipo"]
+                if it["consultar"]:
+                    if feitos:
+                        time.sleep(delay)
+                    status_text.info(f"🔍 Consultando **{feitos + 1}/{total}**: Processo `{it['numero_processo']}`")
+                    detail = engine.get_details(it["numero_processo"])
+                    detail.pop("ID_Pesquisado", None)
+                    detail.pop("numero_processo", None)   # mantém o número verificado na entrada
+                    linha["observacao"] = detail.pop("Erro", "")
+                    if linha["observacao"]:
+                        tipo = "erro_consulta"
+                    linha.update(detail)
+                    feitos += 1
+                    progress_bar.progress(feitos / total)
+                results.append(linha)
+                tipos.append(tipo)
 
             progress_bar.progress(1.0)
-            status_text.success(f"✅ Consulta finalizada com sucesso! **{len(results)} processos** processados.")
+            n_erro_consulta = tipos.count("erro_consulta")
+            n_repetidos, n_invalidos = tipos.count("repetido"), tipos.count("invalido")
+            frase = f"consultados com sucesso: **{feitos - n_erro_consulta}**"
+            if n_erro_consulta:
+                frase += f" · com erro na consulta: **{n_erro_consulta}**"
+            if n_repetidos or n_invalidos:
+                frase += (f" · não consultadas (repetidas: **{n_repetidos}**, "
+                          f"com erro de preenchimento: **{n_invalidos}**)")
+            if n_erro_consulta or n_repetidos or n_invalidos:
+                status_text.warning(f"⚠️ Consulta finalizada: {frase}. O motivo de cada caso está na coluna **observacao**.")
+                erros_consulta = [r["observacao"] for r, t in zip(results, tipos) if t == "erro_consulta"]
+                if erros_consulta:
+                    resumo = pd.Series(erros_consulta).value_counts()
+                    st.markdown("\n".join(f"- **{n}×** {msg}" for msg, n in resumo.items()))
+            else:
+                status_text.success(f"✅ Consulta finalizada com sucesso! **{feitos}** processos consultados.")
 
             df_final = pd.DataFrame(results)
 
-            # ─── Add semaphore status column ───
-            if "situacao" in df_final.columns:
-                df_final.insert(
-                    df_final.columns.get_loc("situacao") + 1,
-                    "status",
-                    df_final["situacao"].apply(get_status_indicator)
-                )
+            # ─── Coluna de status (semáforo), com marcação própria para erros e repetidos ───
+            situacoes = df_final["situacao"] if "situacao" in df_final.columns else pd.Series([None] * len(df_final))
+            status = [
+                STATUS_REPETIDO if t == "repetido" else STATUS_ERRO if t in ("invalido", "erro_consulta")
+                else get_status_indicator(s)
+                for t, s in zip(tipos, situacoes)
+            ]
+            pos = df_final.columns.get_loc("situacao") + 1 if "situacao" in df_final.columns else 4
+            df_final.insert(pos, "status", status)
 
             # Store in session state so downloads don't clear the page
             st.session_state.df_results = df_final
             st.session_state.query_done = True
 
         else:
-            st.error("❌ **Erro crítico:** Não foi possível conectar ao INPI. Tente novamente em alguns instantes.")
+            status_text.empty()
+            st.error(f"❌ **Não foi possível conectar ao INPI.** {engine.last_error}")
+            with st.expander("Diagnóstico da conexão", expanded=True):
+                st.markdown("\n".join(f"{i}. {passo}" for i, passo in enumerate(engine.diagnostico, 1)))
 
 # ─── Display Results (from session state, persists across reruns) ───
 if st.session_state.query_done and st.session_state.df_results is not None:
     df_final = st.session_state.df_results
 
-    # ─── Export Section ───
+    # ─── Resultados: exportação, cópia e tabela no mesmo bloco ───
     st.markdown("---")
     st.markdown("""
     <div class="card">
-        <div class="card-title">📥 Exportar Resultados</div>
-        <div class="card-description">Baixe os dados consultados no formato de sua preferência.</div>
+        <div class="card-title">📋 Resultados</div>
+        <div class="card-description">Visualize todos os dados retornados pelo INPI. Clique nas colunas para ordenar.
+        Baixe os dados no formato de sua preferência ou copie a tabela para colar direto em uma planilha ou e-mail.</div>
     </div>
     """, unsafe_allow_html=True)
 
-    col_exp1, col_exp2 = st.columns(2)
+    df_export = df_final
+    col_exp1, col_exp2, col_exp3 = st.columns(3)
 
     with col_exp1:
-        df_export = df_final.drop(columns=["status"], errors="ignore")
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df_export.to_excel(writer, index=False, sheet_name='Resultados INPI')
@@ -595,7 +686,6 @@ if st.session_state.query_done and st.session_state.df_results is not None:
         )
 
     with col_exp2:
-        df_export = df_final.drop(columns=["status"], errors="ignore")
         csv = df_export.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="📄 Baixar CSV",
@@ -605,30 +695,27 @@ if st.session_state.query_done and st.session_state.df_results is not None:
             use_container_width=True
         )
 
-    # ─── Results Table ───
-    st.markdown("")
-    st.markdown("""
-    <div class="card">
-        <div class="card-title">📋 Resultados da Consulta</div>
-        <div class="card-description">Visualize todos os dados retornados pelo INPI. Clique nas colunas para ordenar.</div>
-    </div>
-    """, unsafe_allow_html=True)
+    with col_exp3:
+        # Copia a tabela como texto separado por tabulação: cola em colunas no Excel ou em um e-mail
+        tsv = df_export.fillna("").to_csv(index=False, sep="\t")
+        botao_copiar(tsv)
 
-    # Legend
-    st.markdown("""
-    <div class="legend-container">
-        <div class="legend-item">✅ Aguardando exame / Deferido</div>
-        <div class="legend-item">®️ Registro em vigor</div>
-        <div class="legend-item">❌ Indeferido / Extinto</div>
-        <div class="legend-item">🟡 Oposição / Sobrestado</div>
-        <div class="legend-item">⚪ Outro</div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Resumo por status: só as categorias presentes (substitui a legenda)
+    if "status" in df_final.columns:
+        contagem_status = df_final["status"].value_counts()
+        st.markdown(
+            '<div class="legend-container">'
+            + "".join(f'<div class="legend-item"><b>{n}</b>&nbsp;{rotulo}</div>' for rotulo, n in contagem_status.items())
+            + "</div>",
+            unsafe_allow_html=True,
+        )
 
     st.dataframe(
         df_final,
+        hide_index=True,   # a coluna "linha" já identifica cada entrada
         use_container_width=True,
         height=400,
+        column_config={"status": st.column_config.TextColumn("status", help=AJUDA_STATUS)},
     )
 
     # ─── New Query Button ───
@@ -643,7 +730,7 @@ if st.session_state.query_done and st.session_state.df_results is not None:
             st.rerun()
 
 # ─── Empty state ───
-if not process_ids and not st.session_state.query_done:
+if not itens and not st.session_state.query_done:
     st.markdown("")
     st.markdown("""
     <div style="text-align: center; padding: 3rem 1rem; color: #64748B;">

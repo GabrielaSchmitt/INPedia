@@ -6,8 +6,9 @@
 <!-- Demo GIF -->
 <!-- ![Application Demo](./assets/demo.gif) -->
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.56+-red.svg)](https://streamlit.io/)
+[![Version](https://img.shields.io/badge/vers%C3%A3o-1.1-0F4C81.svg)](https://github.com/GabrielaSchmitt/INPedia/releases)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
 </div>
@@ -19,6 +20,8 @@
 ## 🌐 [English](#en-readme) | Português
 
 ### 🚀 Acesse o aplicativo: **[inpedia.streamlit.app](https://inpedia.streamlit.app/)**
+
+> 💡 **Recomendado:** rodar a INPédia no seu computador (veja o [Guia de Instalação](#-guia-de-instalação)). Assim a consulta vai direto ao INPI, sem intermediários, e fica mais rápida.
 
 ---
 
@@ -43,12 +46,15 @@ Automatizar a verificação de estado de protocolos de marcas registradas no INP
 | Funcionalidade | Descrição |
 |---------------|-----------|
 | 📤 **Upload de Excel** | Interface drag-and-drop para importar planilhas com números de processos |
-| 📋 **Colar Lista** | Cole diretamente uma lista de processos copiada do Excel |
+| 📋 **Colar Lista** | Cole uma lista copiada do Excel e clique direto em consultar |
+| ✅ **Verificação das Entradas** | Antes de consultar, confere se cada número tem 9 dígitos e identifica repetidos; nada é descartado em silêncio |
 | 🔍 **Consulta em Lote** | Processamento automático de múltiplos processos com barra de progresso |
-| 🚦 **Semáforo de Status** | Indicadores visuais (✅❌®️🟡) para rápida identificação da situação |
+| 🚦 **Status com Nome** | Cada processo recebe ícone e categoria (ex.: ®️ Registro em vigor), com resumo por categoria |
 | 📊 **Exportação Excel/CSV** | Download dos resultados em formatos prontos para uso |
-| 📋 **Tabela Interativa** | Visualização com ordenação por colunas |
-| ⚡ **Delay Configurável** | Controle do intervalo entre consultas para evitar bloqueios |
+| 📋 **Copiar Tabela** | Copia todos os resultados para colar direto em uma planilha ou e-mail, sem baixar arquivo |
+| 💬 **Erros Explicados** | Cada falha mostra a causa e o diagnóstico da conexão |
+| 🌎 **Funciona fora do Brasil** | Na versão publicada, usa um relay em São Paulo para contornar o bloqueio geográfico do INPI |
+| ⚡ **Delay Configurável** | Controle do intervalo entre consultas para não sobrecarregar o serviço do INPI |
 
 ---
 
@@ -56,49 +62,58 @@ Automatizar a verificação de estado de protocolos de marcas registradas no INP
 
 ```mermaid
 graph TD
-    A[📥 Input: Excel ou Lista] --> B[🔢 Extração de Nº Processos]
-    B --> C[🔐 Inicialização Sessão INPI]
-    C --> D[🔄 Loop de Consultas]
-    D --> E[📡 Request ao BuscaWeb INPI]
-    E --> F[🔍 Parse HTML da Resposta]
-    F --> G[📊 Extração de Campos]
-    G --> H{Mais processos?}
-    H -->|Sim| D
-    H -->|Não| I[🚦 Classificação de Status]
-    I --> J[📋 Exibição em Tabela]
-    J --> K[💾 Export Excel / CSV]
+    A[📥 Entrada: Excel ou Lista] --> B[✅ Verificação: 9 dígitos e repetidos]
+    B --> C{Conexão direta com o INPI?}
+    C -->|Sim, no Brasil| D[🔐 Sessão direta no BuscaWeb]
+    C -->|Não, bloqueio geográfico| E[🌎 Relay em São Paulo]
+    D --> F[🔄 Loop de Consultas]
+    E --> F
+    F --> G[🔍 Parse HTML da Resposta]
+    G --> H[📊 Extração de Campos]
+    H --> I{Mais processos?}
+    I -->|Sim| F
+    I -->|Não| J[🚦 Classificação de Status]
+    J --> K[📋 Tabela + Resumo por Status]
+    K --> L[💾 Excel / CSV / Copiar]
 ```
+
+Entradas inválidas ou repetidas **não são consultadas**, mas aparecem na tabela final, na mesma linha da entrada, com o motivo na coluna `observacao`.
 
 ---
 
-## 📊 Dados Extraídos
+## 📊 Dados da Tabela de Resultados
 
 | Campo | Descrição |
 |-------|-----------|
-| **Nº Processo** | Número do processo de marca |
-| **Marca** | Nome da marca registrada |
-| **Situação** | Status atual do processo |
-| **Status** | 🚦 Semáforo visual do status |
-| **Apresentação** | Tipo de apresentação da marca |
-| **Natureza** | Natureza da marca |
-| **Titular** | Titular da marca |
-| **Procurador** | Procurador responsável |
-| **Data Depósito** | Data de depósito do pedido |
-| **Data Concessão** | Data de concessão (se aplicável) |
-| **Data Vigência** | Data de vigência do registro |
-| **Classe Nice** | Classificação Internacional de Nice |
-| **Especificação** | Descrição dos produtos/serviços |
-| **Último Despacho** | RPI, data e título do último despacho |
+| **linha** | Posição na entrada (linha do Excel ou da lista colada) |
+| **entrada** | Valor exatamente como foi digitado |
+| **numero_processo** | Número do processo de marca, já normalizado |
+| **observacao** | Motivo quando a linha não foi consultada ou a consulta falhou |
+| **marca** | Nome da marca registrada |
+| **situacao** | Situação atual do processo no INPI |
+| **status** | 🚦 Categoria da situação (ícone + nome) |
+| **apresentacao** | Tipo de apresentação da marca |
+| **natureza** | Natureza da marca |
+| **titular** | Titular da marca |
+| **procurador** | Procurador responsável |
+| **data_deposito** | Data de depósito do pedido |
+| **data_concessao** | Data de concessão (se aplicável) |
+| **data_vigencia** | Data de vigência do registro |
+| **classe_nice** | Classificação Internacional de Nice |
+| **especificacao** | Descrição dos produtos/serviços |
+| **ultimo_despacho_rpi / _data / _titulo** | Número e data da RPI e título do último despacho |
 
-### 🚦 Legenda do Semáforo
+### 🚦 Categorias de Status
 
-| Indicador | Significado |
-|-----------|-------------|
-| ✅ | Aguardando exame de mérito / Deferido |
-| ®️ | Registro de marca em vigor |
-| ❌ | Indeferido / Extinto / Arquivado |
-| 🟡 | Oposição / Sobrestado |
-| ⚪ | Outro status |
+| Status | Quando aparece |
+|--------|----------------|
+| ✅ **Em andamento** | Aguardando exame ou deferido |
+| ®️ **Registro em vigor** | Registro de marca em vigor |
+| ❌ **Encerrado** | Indeferido, extinto, arquivado ou nulidade |
+| 🟡 **Atenção** | Oposição ou sobrestado |
+| ⚪ **Outros** | Qualquer outra situação |
+| ⚠️ **Erro** | Erro de preenchimento ou falha na consulta (veja `observacao`) |
+| 🔁 **Repetido** | Número já consultado em uma linha anterior |
 
 ---
 
@@ -108,24 +123,31 @@ graph TD
 INPedia/
 │
 ├── 📄 app.py                      # Interface Streamlit (UI/UX)
-├── 🔧 inpi_engine.py              # Motor de consulta ao INPI
+├── ✅ inpi_entrada.py             # Verificação das entradas (tipagem e repetidos)
+├── 🔧 inpi_engine.py              # Motor de consulta (conexão direta ou relay)
 ├── 🔍 inpi_parser.py              # Parser HTML dos resultados
 ├── 📋 requirements.txt            # Dependências Python
 ├── 📖 README.md                   # Documentação
 │
-└── 📂 .streamlit/
-    └── ⚙️ config.toml             # Tema e configurações Streamlit
+├── 📂 .streamlit/
+│   ├── ⚙️ config.toml             # Tema e configurações Streamlit
+│   └── 🔑 secrets.toml.example    # Modelo de configuração do relay
+│
+└── 📂 supabase/functions/inpi-relay/
+    └── 🌎 index.ts                # Relay em São Paulo (Edge Function)
 ```
 
 ---
 
 ## 🚀 Guia de Instalação
 
+Este é o **modo de uso recomendado**: a consulta sai do seu computador direto para o INPI.
+
 ### Pré-requisitos
 
-- Python 3.8 ou superior
+- Python 3.10 ou superior
 - pip (gerenciador de pacotes)
-- Conexão com a internet (para acessar o INPI)
+- Conexão com a internet **no Brasil** (o INPI recusa conexões de fora do país)
 
 ### 1️⃣ Clone o Repositório
 
@@ -164,23 +186,59 @@ A aplicação será aberta automaticamente no navegador em `http://localhost:850
 
 ---
 
+## 🌎 Hospedagem fora do Brasil (relay em São Paulo)
+
+O INPI recusa conexões vindas de IPs fora do Brasil (bloqueio de rede, antes de qualquer requisição HTTP). Rodando no Brasil, o app consulta o INPI diretamente. No Streamlit Community Cloud, que roda nos EUA, a conexão direta é recusada e o app passa a usar um **relay**: uma Edge Function do Supabase executada em São Paulo (`sa-east-1`), que faz a consulta e devolve a página do processo para o app analisar.
+
+- Código da função: [`supabase/functions/inpi-relay/index.ts`](supabase/functions/inpi-relay/index.ts). Aceita só números de processo e só acessa `busca.inpi.gov.br`.
+- O intervalo entre consultas é mantido, e nenhum mecanismo de autenticação é contornado: a consulta parte do Brasil, como a de qualquer usuário no país.
+- Configuração no Streamlit Cloud (**Settings → Secrets**), conforme [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example):
+
+```toml
+INPEDIA_RELAY_URL = "https://<projeto>.supabase.co/functions/v1/inpi-relay"
+INPEDIA_RELAY_KEY = "<chave anon do projeto Supabase>"
+```
+
+O Supabase é usado apenas como relay: uma função, sem banco de dados.
+
+> No plano gratuito, o Supabase pode pausar projetos com baixa atividade e avisa o dono do projeto por e-mail antes disso. Se o app indicar "relay pausado", reative o projeto no painel do Supabase.
+
+---
+
 ## 📖 Como Usar
 
 ### Passo a Passo
 
 1. **Importe seus processos**
-   - 📄 Faça upload de um arquivo Excel (.xlsx) com os números dos processos
-   - 📋 Ou cole uma lista de processos diretamente na caixa de texto
+   - 📄 Faça upload de um arquivo Excel (.xlsx) e escolha a coluna dos números
+   - 📋 Ou cole uma lista de processos na caixa de texto, um por linha
+   - ✅ Números com pontos, hífens ou espaços (ex.: `932.062.598`) são aceitos
 
 2. **Configure e consulte**
    - ⚙️ Ajuste o delay entre consultas (padrão: 0.5s)
-   - 🔘 Clique em **"CONSULTAR PROCESSOS"**
+   - 🔘 Clique em **"CONSULTAR PROCESSOS"** (pode clicar logo depois de colar)
    - 📊 Acompanhe o progresso pela barra de carregamento
 
-3. **Exporte os resultados**
-   - 📥 Baixe em **Excel (.xlsx)** ou **CSV**
-   - 📋 Visualize na tabela interativa com semáforo de status
+3. **Use os resultados**
+   - 🚦 Veja o resumo por status logo acima da tabela
+   - 📥 Baixe em **Excel (.xlsx)** ou **CSV**, ou clique em **"Copiar tabela"**
+   - 💬 Linhas com ⚠️ ou 🔁 trazem o motivo na coluna `observacao`
    - 🔄 Clique em **"Realizar nova consulta"** para recomeçar
+
+### ❓ Em caso de erro
+
+1. Leia a mensagem em vermelho e o **Diagnóstico da conexão**: eles dizem a causa.
+2. Se o INPI estiver fora do ar ou lento, tente de novo em alguns minutos.
+3. Verifique se há uma **versão mais recente** em [Releases](https://github.com/GabrielaSchmitt/INPedia/releases) e atualize sua cópia (`git pull`).
+
+---
+
+## 🏷️ Versões
+
+| Versão | Principais mudanças |
+|--------|---------------------|
+| **1.1** | Relay em São Paulo para hospedagem fora do Brasil; verificação das entradas (9 dígitos e repetidos); mensagens de erro com diagnóstico; status com nome e resumo por categoria; botão "Copiar tabela"; correção da leitura da classe de Nice e da especificação; validação do certificado do INPI |
+| **1.0** | Consulta em lote, extração dos campos, semáforo de status e exportação Excel/CSV |
 
 ---
 
@@ -194,7 +252,9 @@ Para dúvidas, problemas ou sugestões:
 
 ## 📄 Licença
 
-Este projeto é de uso pessoal/interno. Todos os dados consultados são provenientes da [Pesquisa Pública do INPI](https://busca.inpi.gov.br).
+Código aberto sob a [Licença MIT](./LICENSE): você pode usar, copiar, modificar e distribuir o código, inclusive para fins comerciais, desde que mantenha o aviso de direitos autorais e a licença.
+
+Os dados consultados são públicos e provenientes da [Pesquisa Pública do INPI](https://busca.inpi.gov.br), que não é a fonte oficial: decisões sobre processos devem ser confirmadas na Revista da Propriedade Industrial (RPI). A ferramenta é fornecida "no estado em que se encontra", sem garantias.
 
 ---
 
@@ -212,6 +272,8 @@ Este projeto é de uso pessoal/interno. Todos os dados consultados são provenie
 ## 🌐 English | [Português](#pt-readme)
 
 ### 🚀 Access the application: **[inpedia.streamlit.app](https://inpedia.streamlit.app/)**
+
+> 💡 **Recommended:** run INPédia on your own computer (see the [Installation Guide](#-installation-guide)). Lookups then go straight to INPI, with no intermediary, and run faster.
 
 ---
 
@@ -236,12 +298,15 @@ Automate the verification of trademark protocol statuses registered at INPI, eli
 | Feature | Description |
 |---------|-------------|
 | 📤 **Excel Upload** | Drag-and-drop interface for importing spreadsheets with process numbers |
-| 📋 **Paste List** | Directly paste a list of processes copied from Excel |
+| 📋 **Paste List** | Paste a list copied from Excel and click query right away |
+| ✅ **Input Check** | Before querying, checks that each number has 9 digits and flags duplicates; nothing is silently dropped |
 | 🔍 **Batch Query** | Automatic processing of multiple processes with progress bar |
-| 🚦 **Status Semaphore** | Visual indicators (✅❌®️🟡) for quick status identification |
+| 🚦 **Named Status** | Each process gets an icon and a category (e.g., ®️ Registro em vigor), with a summary per category |
 | 📊 **Excel/CSV Export** | Download results in ready-to-use formats |
-| 📋 **Interactive Table** | Visualization with column sorting |
-| ⚡ **Configurable Delay** | Control interval between queries to avoid blocking |
+| 📋 **Copy Table** | Copies all results to paste straight into a spreadsheet or email, with no download |
+| 💬 **Explained Errors** | Each failure shows its cause and a connection diagnosis |
+| 🌎 **Works outside Brazil** | The hosted version uses a São Paulo relay to get around INPI's geographic block |
+| ⚡ **Configurable Delay** | Controls the interval between queries so as not to overload INPI's service |
 
 ---
 
@@ -249,49 +314,58 @@ Automate the verification of trademark protocol statuses registered at INPI, eli
 
 ```mermaid
 graph TD
-    A[📥 Input: Excel or List] --> B[🔢 Process Number Extraction]
-    B --> C[🔐 INPI Session Initialization]
-    C --> D[🔄 Query Loop]
-    D --> E[📡 Request to INPI BuscaWeb]
-    E --> F[🔍 HTML Response Parsing]
-    F --> G[📊 Field Extraction]
-    G --> H{More processes?}
-    H -->|Yes| D
-    H -->|No| I[🚦 Status Classification]
-    I --> J[📋 Table Display]
-    J --> K[💾 Export Excel / CSV]
+    A[📥 Input: Excel or List] --> B[✅ Check: 9 digits and duplicates]
+    B --> C{Direct connection to INPI?}
+    C -->|Yes, in Brazil| D[🔐 Direct BuscaWeb session]
+    C -->|No, geographic block| E[🌎 São Paulo relay]
+    D --> F[🔄 Query Loop]
+    E --> F
+    F --> G[🔍 HTML Response Parsing]
+    G --> H[📊 Field Extraction]
+    H --> I{More processes?}
+    I -->|Yes| F
+    I -->|No| J[🚦 Status Classification]
+    J --> K[📋 Table + Status Summary]
+    K --> L[💾 Excel / CSV / Copy]
 ```
+
+Invalid or duplicate entries are **not queried**, but they appear in the final table, on the same row as the input, with the reason in the `observacao` column.
 
 ---
 
-## 📊 Extracted Data
+## 📊 Results Table
 
 | Field | Description |
 |-------|-------------|
-| **Process Nº** | Trademark process number |
-| **Trademark** | Registered trademark name |
-| **Status** | Current process status |
-| **Indicator** | 🚦 Visual status semaphore |
-| **Presentation** | Trademark presentation type |
-| **Nature** | Trademark nature |
-| **Holder** | Trademark holder |
-| **Attorney** | Responsible attorney |
-| **Filing Date** | Application filing date |
-| **Grant Date** | Grant date (if applicable) |
-| **Validity Date** | Registration validity date |
-| **Nice Class** | International Nice Classification |
-| **Specification** | Products/services description |
-| **Latest Dispatch** | RPI, date, and title of latest dispatch |
+| **linha** | Position in the input (Excel row or pasted line) |
+| **entrada** | Value exactly as typed |
+| **numero_processo** | Trademark process number, normalized |
+| **observacao** | Reason when the row was not queried or the query failed |
+| **marca** | Registered trademark name |
+| **situacao** | Current process status at INPI |
+| **status** | 🚦 Status category (icon + name) |
+| **apresentacao** | Trademark presentation type |
+| **natureza** | Trademark nature |
+| **titular** | Trademark holder |
+| **procurador** | Responsible attorney |
+| **data_deposito** | Application filing date |
+| **data_concessao** | Grant date (if applicable) |
+| **data_vigencia** | Registration validity date |
+| **classe_nice** | International Nice Classification |
+| **especificacao** | Products/services description |
+| **ultimo_despacho_rpi / _data / _titulo** | RPI number and date, and title of the latest dispatch |
 
-### 🚦 Semaphore Legend
+### 🚦 Status Categories
 
-| Indicator | Meaning |
-|-----------|---------|
-| ✅ | Awaiting merit examination / Granted |
-| ®️ | Active trademark registration |
-| ❌ | Rejected / Extinct / Archived |
-| 🟡 | Opposition / Stayed |
-| ⚪ | Other status |
+| Status | Meaning |
+|--------|---------|
+| ✅ **Em andamento** | Awaiting examination or granted |
+| ®️ **Registro em vigor** | Active trademark registration |
+| ❌ **Encerrado** | Rejected, extinct, archived, or annulment |
+| 🟡 **Atenção** | Opposition or stayed |
+| ⚪ **Outros** | Any other status |
+| ⚠️ **Erro** | Input error or failed query (see `observacao`) |
+| 🔁 **Repetido** | Number already queried on an earlier row |
 
 ---
 
@@ -301,24 +375,31 @@ graph TD
 INPedia/
 │
 ├── 📄 app.py                      # Streamlit interface (UI/UX)
-├── 🔧 inpi_engine.py              # INPI query engine
+├── ✅ inpi_entrada.py             # Input check (format and duplicates)
+├── 🔧 inpi_engine.py              # Query engine (direct connection or relay)
 ├── 🔍 inpi_parser.py              # HTML results parser
 ├── 📋 requirements.txt            # Python dependencies
 ├── 📖 README.md                   # Documentation
 │
-└── 📂 .streamlit/
-    └── ⚙️ config.toml             # Streamlit theme and settings
+├── 📂 .streamlit/
+│   ├── ⚙️ config.toml             # Streamlit theme and settings
+│   └── 🔑 secrets.toml.example    # Relay configuration template
+│
+└── 📂 supabase/functions/inpi-relay/
+    └── 🌎 index.ts                # São Paulo relay (Edge Function)
 ```
 
 ---
 
 ## 🚀 Installation Guide
 
+This is the **recommended way to use INPédia**: lookups go from your computer straight to INPI.
+
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.10 or higher
 - pip (package manager)
-- Internet connection (to access INPI)
+- Internet connection **in Brazil** (INPI refuses connections from outside the country)
 
 ### 1️⃣ Clone the Repository
 
@@ -357,23 +438,59 @@ The application will automatically open in your browser at `http://localhost:850
 
 ---
 
+## 🌎 Hosting outside Brazil (São Paulo relay)
+
+INPI refuses connections from IP addresses outside Brazil (a network-level block, before any HTTP request). When running in Brazil, the app queries INPI directly. On Streamlit Community Cloud, which runs in the US, the direct connection is refused and the app falls back to a **relay**: a Supabase Edge Function executed in São Paulo (`sa-east-1`) that performs the lookup and returns the application page for the app to parse.
+
+- Function source: [`supabase/functions/inpi-relay/index.ts`](supabase/functions/inpi-relay/index.ts). It only accepts application numbers and only reaches `busca.inpi.gov.br`.
+- The interval between queries is kept, and no authentication mechanism is bypassed: the lookup comes from Brazil, like any user in the country.
+- Streamlit Cloud configuration (**Settings → Secrets**), as in [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example):
+
+```toml
+INPEDIA_RELAY_URL = "https://<project>.supabase.co/functions/v1/inpi-relay"
+INPEDIA_RELAY_KEY = "<Supabase project anon key>"
+```
+
+Supabase is used only as a relay: one function, no database.
+
+> On the free plan, Supabase may pause projects with low activity, and it emails the project owner before doing so. If the app reports "relay paused", resume the project in the Supabase dashboard.
+
+---
+
 ## 📖 How to Use
 
 ### Step by Step
 
 1. **Import your processes**
-   - 📄 Upload an Excel file (.xlsx) with process numbers
-   - 📋 Or paste a list of processes directly into the text box
+   - 📄 Upload an Excel file (.xlsx) and choose the column with the numbers
+   - 📋 Or paste a list of processes into the text box, one per line
+   - ✅ Numbers with dots, hyphens, or spaces (e.g., `932.062.598`) are accepted
 
 2. **Configure and query**
    - ⚙️ Adjust the delay between queries (default: 0.5s)
-   - 🔘 Click **"CONSULTAR PROCESSOS"**
+   - 🔘 Click **"CONSULTAR PROCESSOS"** (you can click right after pasting)
    - 📊 Track progress via the loading bar
 
-3. **Export results**
-   - 📥 Download as **Excel (.xlsx)** or **CSV**
-   - 📋 View in the interactive table with status semaphore
+3. **Use the results**
+   - 🚦 See the status summary right above the table
+   - 📥 Download as **Excel (.xlsx)** or **CSV**, or click **"Copiar tabela"**
+   - 💬 Rows marked ⚠️ or 🔁 show the reason in the `observacao` column
    - 🔄 Click **"Realizar nova consulta"** to start over
+
+### ❓ If something goes wrong
+
+1. Read the red message and the **connection diagnosis**: they state the cause.
+2. If INPI is offline or slow, try again in a few minutes.
+3. Check for a **newer version** under [Releases](https://github.com/GabrielaSchmitt/INPedia/releases) and update your copy (`git pull`).
+
+---
+
+## 🏷️ Versions
+
+| Version | Main changes |
+|---------|--------------|
+| **1.1** | São Paulo relay for hosting outside Brazil; input check (9 digits and duplicates); error messages with diagnosis; named status and per-category summary; "Copiar tabela" button; fixed Nice class and specification parsing; INPI certificate validation |
+| **1.0** | Batch lookup, field extraction, status semaphore, and Excel/CSV export |
 
 ---
 
@@ -387,7 +504,9 @@ For questions, issues, or suggestions:
 
 ## 📄 License
 
-This project is for personal/internal use. All queried data comes from the [INPI Public Search](https://busca.inpi.gov.br).
+Open source under the [MIT License](./LICENSE): you may use, copy, modify, and distribute the code, including for commercial purposes, as long as you keep the copyright notice and the license.
+
+Queried data is public and comes from the [INPI Public Search](https://busca.inpi.gov.br), which is not the official source: decisions about applications should be confirmed in the Revista da Propriedade Industrial (RPI). The tool is provided "as is", without warranty.
 
 ---
 

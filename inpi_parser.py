@@ -31,7 +31,7 @@ def parse_inpi_detail(html_content):
     
     # 2. Titulares
     titular = ""
-    titulares_label = soup.find(string=re.compile("Titular\(1\):", re.IGNORECASE))
+    titulares_label = soup.find(string=re.compile(r"Titular\(1\):", re.IGNORECASE))
     if titulares_label:
         td = titulares_label.find_parent('td')
         if td:
@@ -96,10 +96,17 @@ def parse_inpi_detail(html_content):
         text = table.get_text(strip=True)
         if "Classe de Nice" in text:
             for row in table.find_all("tr"):
-                cols = row.find_all(["td", "th"])
+                # recursive=False: as células têm tabelas internas (balões com o texto completo)
+                cols = row.find_all(["td", "th"], recursive=False)
                 if len(cols) >= 3 and "NCL" in cols[0].get_text():
-                    classe = cols[0].get_text(strip=True)
-                    especificacao = cols[2].get_text(strip=True)
+                    ncl = re.search(r"NCL\(\d+\)\s*\d+", cols[0].get_text(" ", strip=True))
+                    classe = ncl.group(0) if ncl else cols[0].get_text(strip=True)
+                    # a especificação completa fica no balão, depois do rótulo "Especificação"
+                    textos = list(cols[2].stripped_strings)
+                    if "Especificação" in textos and textos.index("Especificação") + 1 < len(textos):
+                        especificacao = textos[textos.index("Especificação") + 1]
+                    else:
+                        especificacao = textos[0] if textos else ""
                     break
             if classe: break
     
