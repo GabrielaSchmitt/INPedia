@@ -99,6 +99,7 @@ Entradas inválidas ou repetidas **não são consultadas**, mas aparecem na tabe
 | **data_deposito** | Data de depósito do pedido |
 | **data_concessao** | Data de concessão (se aplicável) |
 | **data_vigencia** | Data de vigência do registro |
+| **prioridade** | Prioridade unionista, quando houver |
 | **classe_nice** | Classificação Internacional de Nice |
 | **especificacao** | Descrição dos produtos/serviços |
 | **ultimo_despacho_rpi / _data / _titulo** | Número e data da RPI e título do último despacho |
@@ -351,6 +352,7 @@ Invalid or duplicate entries are **not queried**, but they appear in the final t
 | **data_deposito** | Application filing date |
 | **data_concessao** | Grant date (if applicable) |
 | **data_vigencia** | Registration validity date |
+| **prioridade** | Paris Convention (unionist) priority, if any |
 | **classe_nice** | International Nice Classification |
 | **especificacao** | Products/services description |
 | **ultimo_despacho_rpi / _data / _titulo** | RPI number and date, and title of the latest dispatch |
