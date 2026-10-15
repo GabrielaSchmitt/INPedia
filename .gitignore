@@ -29,3 +29,6 @@ desktop.ini
 
 # Logs
 *.log
+
+# Segredos do Streamlit (chave do relay)
+.streamlit/secrets.toml
