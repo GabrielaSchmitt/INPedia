@@ -14,6 +14,11 @@ import requests
 
 from inpi_parser import parse_inpi_detail
 
+# A sessão anônima do pePI expira cerca de 5 min depois de aberta, mesmo com consultas contínuas:
+# a busca passa a ser redirecionada para a tela de login (medido com medir_tempos.py, 17/10/2026).
+# O motor abre uma sessão nova a cada 4 min e, se ela cair antes, renova e repete o processo.
+SESSAO_MAX_S = 240
+
 BASE_URL = "https://busca.inpi.gov.br/pePI/servlet/MarcasServletController"
 LOGIN_URL = "https://busca.inpi.gov.br/pePI/servlet/LoginController?action=login"
 HEADERS = {
@@ -34,6 +39,7 @@ MENSAGENS = {
     "inpi_http": "O INPI respondeu com erro.",
     "nao_encontrado": "Processo não encontrado no INPI.",
     "pagina_inesperada": "A página do INPI veio em formato inesperado (o layout pode ter mudado).",
+    "sessao_expirada": "A sessão de consulta do INPI expirou e não foi possível abrir outra. Tente novamente em alguns minutos.",
     "entrada_invalida": "Número de processo inválido.",
 }
 
@@ -59,6 +65,9 @@ class INPIEngine:
         self.session = requests.Session()
         self.relay_session = requests.Session()  # keep-alive: evita um handshake HTTPS por processo (~0,35 s)
         self.relay_cookie = ""
+        self.sessao_desde = 0.0              # quando a sessão atual foi aberta (time.monotonic)
+        self.renovacoes = 0                  # sessões renovadas durante o lote (proativas + após expirar)
+        self._sessao_caiu = False
         self.last_error = ""
         self.last_error_tipo = ""
         self.diagnostico = []                # passo a passo, para mostrar ao usuário quando algo falha
@@ -70,6 +79,7 @@ class INPIEngine:
         if self.modo_solicitado in ("auto", "direto"):
             try:
                 self.session.get(LOGIN_URL, headers=HEADERS, timeout=(5, 15))
+                self.sessao_desde = time.monotonic()
                 self.modo = "direto"
                 self.diagnostico.append("Conexão direta com o INPI: ok")
                 return True
@@ -97,6 +107,7 @@ class INPIEngine:
         if tipo:
             return self._falha(tipo, resp.get("erro") if resp else None)
         self.relay_cookie = resp.get("cookie", "")
+        self.sessao_desde = time.monotonic()
         self.modo = "relay"
         self.diagnostico.append(f"Relay em {resp.get('regiao')}: ok (INPI respondeu em {resp.get('ms')} ms)")
         return True
@@ -129,9 +140,25 @@ class INPIEngine:
         return dados, status if status in MENSAGENS else "inpi_conexao"
 
     # ─── consulta de um processo ───
+    def _renovar_sessao(self):
+        """Abre uma sessão anônima nova no pePI. No relay, basta esquecer o cookie: a função faz o login."""
+        self.renovacoes += 1
+        self._sessao_caiu = False
+        self.sessao_desde = time.monotonic()
+        if self.modo == "relay":
+            self.relay_cookie = ""
+            return
+        self.session = requests.Session()
+        try:
+            self.session.get(LOGIN_URL, headers=HEADERS, timeout=(5, 15))
+        except requests.exceptions.RequestException:
+            pass                             # a busca seguinte trata a falha de conexão como qualquer outra
+
     def get_details(self, process_id):
         process_id = str(process_id)
         for tentativa in range(3):
+            if time.monotonic() - self.sessao_desde > SESSAO_MAX_S:
+                self._renovar_sessao()
             if self.modo == "relay":
                 resultado, repetir = self._via_relay(process_id)
             else:
@@ -139,7 +166,10 @@ class INPIEngine:
             if not repetir or tentativa == 2:
                 resultado["ID_Pesquisado"] = process_id
                 return resultado
-            time.sleep(2)
+            if self._sessao_caiu:
+                self._renovar_sessao()       # sessão expirou: renova e repete na hora
+            else:
+                time.sleep(2)
 
     def _erro(self, tipo, detalhe=None):
         return {"Erro": MENSAGENS[tipo] + (f" ({detalhe})" if detalhe else "")}
@@ -148,6 +178,10 @@ class INPIEngine:
         dados, tipo = self._chamar_relay({"processo": pid, "cookie": self.relay_cookie})
         if dados and dados.get("cookie"):
             self.relay_cookie = dados["cookie"]
+        if tipo == "pagina_inesperada":
+            # o relay não diz se foi a tela de login; renovar o cookie custa pouco, então renova e repete
+            self._sessao_caiu = True
+            return self._erro(tipo, (dados or {}).get("erro")), True
         if tipo:
             # timeouts e falhas de conexão valem nova tentativa; o resto não muda ao repetir
             return self._erro(tipo, (dados or {}).get("erro")), tipo in ("inpi_timeout", "inpi_conexao", "relay_indisponivel")
@@ -162,6 +196,9 @@ class INPIEngine:
             if r.status_code != 200:
                 return self._erro("inpi_http", f"HTTP {r.status_code}"), True
             html = r.text
+            if "F_LoginCliente" in html:      # redirecionado para a tela de login: a sessão expirou
+                self._sessao_caiu = True
+                return self._erro("sessao_expirada"), True
             if "nenhum resultado foi encontrado" in html.lower():
                 return self._erro("nao_encontrado"), False
             m = re.search(r'Action=detail&CodPedido=(\d+)', html)

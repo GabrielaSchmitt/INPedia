@@ -578,6 +578,13 @@ def fmt_duracao(segundos):
     return f"≈ {minutos // 60} h {minutos % 60:02d} min"
 
 
+def texto_restante(feitos, total, decorrido):
+    """Tempo restante pela média real dos processos já consultados (vale para conexão direta e relay)."""
+    if feitos < 5:                      # com menos de 5 processos a média ainda oscila demais
+        return " · calculando o tempo restante…"
+    return f" · restam **{fmt_duracao(decorrido / feitos * (total - feitos))}**"
+
+
 def mini_card(valor, rotulo):
     return f"""
         <div style="text-align: center; padding: 0.2rem 0;">
@@ -631,6 +638,7 @@ if not st.session_state.query_done:
                 st.caption("🌎 Conectado via relay em São Paulo: o INPI recusa conexões de servidores fora do Brasil.")
             total = len(process_ids)
             feitos = 0
+            inicio_lote = time.monotonic()
             results, tipos = [], []
             # Todas as entradas saem na planilha, na ordem original; só as válidas e inéditas são consultadas
             for it in itens:
@@ -640,7 +648,8 @@ if not st.session_state.query_done:
                 if it["consultar"]:
                     if feitos:
                         time.sleep(delay)
-                    status_text.info(f"🔍 Consultando **{feitos + 1}/{total}**: Processo `{it['numero_processo']}`")
+                    status_text.info(f"🔍 Consultando **{feitos + 1}/{total}**: Processo `{it['numero_processo']}`"
+                                     + texto_restante(feitos, total, time.monotonic() - inicio_lote))
                     detail = engine.get_details(it["numero_processo"])
                     detail.pop("ID_Pesquisado", None)
                     detail.pop("numero_processo", None)   # mantém o número verificado na entrada

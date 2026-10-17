@@ -8,7 +8,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.56+-red.svg)](https://streamlit.io/)
-[![Version](https://img.shields.io/badge/vers%C3%A3o-1.1-0F4C81.svg)](https://github.com/GabrielaSchmitt/INPedia/releases)
+[![Version](https://img.shields.io/badge/vers%C3%A3o-1.2-0F4C81.svg)](https://github.com/GabrielaSchmitt/INPedia/releases)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
 </div>
@@ -193,6 +193,7 @@ O INPI recusa conexões vindas de IPs fora do Brasil (bloqueio de rede, antes de
 
 - Código da função: [`supabase/functions/inpi-relay/index.ts`](supabase/functions/inpi-relay/index.ts). Aceita só números de processo e só acessa `busca.inpi.gov.br`.
 - O intervalo entre consultas é mantido, e nenhum mecanismo de autenticação é contornado: a consulta parte do Brasil, como a de qualquer usuário no país.
+- A sessão anônima do pePI expira cerca de 5 minutos depois de aberta. O app abre uma sessão nova a cada 4 minutos, da mesma forma que um usuário clicaria em "Continuar" na tela de login.
 - Configuração no Streamlit Cloud (**Settings → Secrets**), conforme [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example):
 
 ```toml
@@ -238,6 +239,7 @@ O Supabase é usado apenas como relay: uma função, sem banco de dados.
 
 | Versão | Principais mudanças |
 |--------|---------------------|
+| **1.2** | Intervalo entre processos com opções de 1 a 5 s (padrão 1 s, abaixo do limite de bloqueio da RPI nº 2728) e estimativa do tempo total; renovação automática da sessão anônima do INPI, que expira em cerca de 5 minutos |
 | **1.1** | Relay em São Paulo para hospedagem fora do Brasil; verificação das entradas (9 dígitos e repetidos); mensagens de erro com diagnóstico; status com nome e resumo por categoria; botão "Copiar tabela"; correção da leitura da classe de Nice e da especificação; validação do certificado do INPI |
 | **1.0** | Consulta em lote, extração dos campos, semáforo de status e exportação Excel/CSV |
 
@@ -446,6 +448,7 @@ INPI refuses connections from IP addresses outside Brazil (a network-level block
 
 - Function source: [`supabase/functions/inpi-relay/index.ts`](supabase/functions/inpi-relay/index.ts). It only accepts application numbers and only reaches `busca.inpi.gov.br`.
 - The interval between queries is kept, and no authentication mechanism is bypassed: the lookup comes from Brazil, like any user in the country.
+- pePI's anonymous session expires about 5 minutes after it is opened. The app opens a new session every 4 minutes, the same way a user would click "Continuar" on the login screen.
 - Streamlit Cloud configuration (**Settings → Secrets**), as in [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example):
 
 ```toml
@@ -491,6 +494,7 @@ Supabase is used only as a relay: one function, no database.
 
 | Version | Main changes |
 |---------|--------------|
+| **1.2** | Interval between lookups from 1 to 5 s (1 s by default, below the blocking threshold in RPI no. 2728) with an estimate of the total time; automatic renewal of INPI's anonymous session, which expires after about 5 minutes |
 | **1.1** | São Paulo relay for hosting outside Brazil; input check (9 digits and duplicates); error messages with diagnosis; named status and per-category summary; "Copiar tabela" button; fixed Nice class and specification parsing; INPI certificate validation |
 | **1.0** | Batch lookup, field extraction, status semaphore, and Excel/CSV export |
 
