@@ -172,7 +172,9 @@ class INPIEngine:
                 return self._analisar(html), False
             return self._erro("pagina_inesperada"), True
         except requests.exceptions.ConnectTimeout:
-            return self._erro("bloqueio_geografico"), False
+            # A conexão direta já foi aberta em initialize_session, então o IP não está bloqueado.
+            # Sem resposta em 5 s no meio do lote é instabilidade do INPI: vale nova tentativa.
+            return self._erro("inpi_timeout", "sem resposta ao conectar"), True
         except requests.exceptions.Timeout:
             return self._erro("inpi_timeout"), True
         except requests.exceptions.RequestException as e:
