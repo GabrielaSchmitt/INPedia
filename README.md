@@ -54,7 +54,7 @@ Automatizar a verificação de estado de protocolos de marcas registradas no INP
 | 📋 **Copiar Tabela** | Copia todos os resultados para colar direto em uma planilha ou e-mail, sem baixar arquivo |
 | 💬 **Erros Explicados** | Cada falha mostra a causa e o diagnóstico da conexão |
 | 🌎 **Funciona fora do Brasil** | Na versão publicada, usa um relay em São Paulo para contornar o bloqueio geográfico do INPI |
-| ⚡ **Delay Configurável** | Controle do intervalo entre consultas para não sobrecarregar o serviço do INPI |
+| ⚡ **Intervalo entre processos** | Opções de 1 a 5 s, com estimativa do tempo total. Com 1 s ou mais, o ritmo fica em no máximo 120 consultas por minuto, o limite de bloqueio informado pelo INPI na RPI nº 2728 (18/04/2023) |
 
 ---
 
@@ -216,7 +216,7 @@ O Supabase é usado apenas como relay: uma função, sem banco de dados.
    - ✅ Números com pontos, hífens ou espaços (ex.: `932.062.598`) são aceitos
 
 2. **Configure e consulte**
-   - ⚙️ Ajuste o delay entre consultas (padrão: 0.5s)
+   - ⚙️ Escolha o intervalo entre processos (padrão: 1 s) e confira o tempo estimado
    - 🔘 Clique em **"CONSULTAR PROCESSOS"** (pode clicar logo depois de colar)
    - 📊 Acompanhe o progresso pela barra de carregamento
 
@@ -307,7 +307,7 @@ Automate the verification of trademark protocol statuses registered at INPI, eli
 | 📋 **Copy Table** | Copies all results to paste straight into a spreadsheet or email, with no download |
 | 💬 **Explained Errors** | Each failure shows its cause and a connection diagnosis |
 | 🌎 **Works outside Brazil** | The hosted version uses a São Paulo relay to get around INPI's geographic block |
-| ⚡ **Configurable Delay** | Controls the interval between queries so as not to overload INPI's service |
+| ⚡ **Interval between lookups** | Options from 1 to 5 s, with an estimate of the total time. At 1 s or more, the rate stays at or below 120 queries per minute, the blocking threshold stated by INPI in RPI no. 2728 (2023-04-18) |
 
 ---
 
@@ -469,7 +469,7 @@ Supabase is used only as a relay: one function, no database.
    - ✅ Numbers with dots, hyphens, or spaces (e.g., `932.062.598`) are accepted
 
 2. **Configure and query**
-   - ⚙️ Adjust the delay between queries (default: 0.5s)
+   - ⚙️ Choose the interval between lookups (default: 1 s) and check the estimated time
    - 🔘 Click **"CONSULTAR PROCESSOS"** (you can click right after pasting)
    - 📊 Track progress via the loading bar
 

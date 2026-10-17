@@ -404,11 +404,6 @@ div[data-testid="stMainBlockContainer"] {
     border-radius: 10px !important;
 }
 
-/* ── Slider ── */
-.stSlider > div > div > div > div {
-    background: var(--azul-petroleo) !important;
-}
-
 /* ── Dataframe ── */
 .stDataFrame {
     border-radius: 12px;
@@ -552,27 +547,69 @@ if itens:
                   "Repetidas e com erro não são consultadas, mas ficam na planilha de saída, na mesma linha, com o motivo")
     st.info(aviso + ".")
 
+# ─── Intervalo entre processos e estimativa de tempo ───
+# Cada processo faz 2 requisições ao INPI (busca + página de detalhe) e o intervalo é aplicado entre processos.
+# Mesmo com resposta instantânea, o ritmo fica em no máximo 2 × 60 / intervalo requisições por minuto.
+# Com 1 s, o teto é 120/min: o Buscaweb bloqueia quem faz "mais de 120 consultas por minuto"
+# (RPI nº 2728, 18/04/2023, Comunicados, "Bloqueio de usuários"). Por isso 1 s é o mínimo.
+OPCOES_INTERVALO = [1.0, 1.5, 2.0, 3.0, 5.0]
+REQUISICOES_POR_PROCESSO = 2
+RESPOSTA_MEDIA_S = 2.6   # resposta média do INPI por processo, medida em lote de 100 (recalibrar com medir_tempos.py)
+
+
+AJUDA_INTERVALO = (
+    f"Cada processo faz {REQUISICOES_POR_PROCESSO} consultas ao INPI. Com 1 s ou mais entre processos, o ritmo nunca "
+    "passa de 120 consultas por minuto, o limite de bloqueio informado pelo INPI na RPI nº 2728. "
+    f"O tempo estimado considera cerca de {str(RESPOSTA_MEDIA_S).replace('.', ',')} s de resposta por processo; "
+    "em lotes grandes, a demora pode ser maior se o INPI ficar instável."
+)
+
+
+def fmt_num(v):
+    return f"{v:g}".replace(".", ",")
+
+
+def fmt_duracao(segundos):
+    if segundos < 60:
+        return f"{round(segundos)} s"
+    minutos = round(segundos / 60)
+    if minutos < 60:
+        return f"≈ {minutos} min"
+    return f"≈ {minutos // 60} h {minutos % 60:02d} min"
+
+
+def mini_card(valor, rotulo):
+    return f"""
+        <div style="text-align: center; padding: 0.2rem 0;">
+            <div style="font-size: 1.8rem; font-weight: 800; color: #0F4C81; white-space: nowrap;">{valor}</div>
+            <div style="font-size: 0.7rem; color: #64748B; text-transform: uppercase; font-weight: 600;">{rotulo}</div>
+        </div>
+        """
+
+
 # ─── Query Section ───
 # Sempre visível: o texto colado só é registrado quando a caixa perde o foco,
 # e clicar no botão já faz isso, então o usuário pode colar e consultar direto.
 if not st.session_state.query_done:
     st.markdown("---")
 
-    # Compact config row
-    col_cfg1, col_cfg2, col_cfg3 = st.columns([2, 1, 2])
-    with col_cfg1:
-        delay = st.slider(
-            "Delay entre consultas (seg)",
-            0.0, 5.0, 0.5, 0.1,
-            help="Tempo de espera entre cada consulta ao INPI."
-        )
-    with col_cfg2:
-        st.markdown(f"""
-        <div style="text-align: center; padding-top: 0.5rem;">
-            <div style="font-size: 1.8rem; font-weight: 800; color: #0F4C81;">{len(process_ids)}</div>
-            <div style="font-size: 0.7rem; color: #64748B; text-transform: uppercase; font-weight: 600;">processos</div>
-        </div>
-        """, unsafe_allow_html=True)
+    # Linha de configuração: seletor centralizado em cima, três cartões iguais embaixo
+    with st.container(horizontal=True, horizontal_alignment="center"):
+        delay = st.segmented_control(
+            "Intervalo entre processos",
+            OPCOES_INTERVALO, default=1.0, required=True,
+            format_func=lambda v: f"**{fmt_num(v)} s**",
+            help=AJUDA_INTERVALO,
+        ) or OPCOES_INTERVALO[0]
+    n_proc = len(process_ids)
+    estimativa = n_proc * RESPOSTA_MEDIA_S + max(n_proc - 1, 0) * delay
+    card_proc, card_int, card_tempo = st.columns(3, border=True, vertical_alignment="center")
+    with card_proc:
+        st.markdown(mini_card(n_proc, "processos"), unsafe_allow_html=True)
+    with card_int:
+        st.markdown(mini_card(f"{fmt_num(delay)} s", "intervalo"), unsafe_allow_html=True)
+    with card_tempo:
+        st.markdown(mini_card(fmt_duracao(estimativa) if n_proc else "—", "tempo estimado"), unsafe_allow_html=True)
 
     st.markdown("")
 
