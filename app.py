@@ -554,7 +554,11 @@ if itens:
 # (RPI nº 2728, 18/04/2023, Comunicados, "Bloqueio de usuários"). Por isso 1 s é o mínimo.
 OPCOES_INTERVALO = [1.0, 1.5, 2.0, 3.0, 5.0]
 REQUISICOES_POR_PROCESSO = 2
-RESPOSTA_MEDIA_S = 2.6   # resposta média do INPI por processo, medida em lote de 100 (recalibrar com medir_tempos.py)
+# Resposta média do INPI por processo, sem contar o intervalo, com o app rodando no computador (conexão direta).
+# Medições de 17/10/2026: app local, 200 processos em 8:30 (≈1,56 s); medir_tempos.py, 800 processos (1,50 s).
+# No app publicado (relay) a resposta foi mais rápida (≈0,74 s), então a estimativa fica do lado seguro;
+# durante a consulta, o tempo restante usa a média real.
+RESPOSTA_MEDIA_S = 1.6
 
 
 AJUDA_INTERVALO = (

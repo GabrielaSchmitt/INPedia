@@ -8,7 +8,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.56+-red.svg)](https://streamlit.io/)
-[![Version](https://img.shields.io/badge/vers%C3%A3o-1.2-0F4C81.svg)](https://github.com/GabrielaSchmitt/INPedia/releases)
+[![Version](https://img.shields.io/badge/vers%C3%A3o-1.2.1-0F4C81.svg)](https://github.com/GabrielaSchmitt/INPedia/releases)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
 </div>
@@ -21,7 +21,7 @@
 
 ### 🚀 Acesse o aplicativo: **[inpedia.streamlit.app](https://inpedia.streamlit.app/)**
 
-> 💡 **Recomendado:** rodar a INPédia no seu computador (veja o [Guia de Instalação](#-guia-de-instalação)). Assim a consulta vai direto ao INPI, sem intermediários, e fica mais rápida.
+> 💡 **Recomendado:** rodar a INPédia no seu computador (veja o [Guia de Instalação](#-guia-de-instalação)). Assim a consulta vai direto ao INPI, sem intermediários, e não depende do relay. O app publicado também funciona e, nos testes, chegou a ser mais rápido, porque o relay fica num data center em São Paulo.
 
 ---
 
@@ -48,7 +48,8 @@ Automatizar a verificação de estado de protocolos de marcas registradas no INP
 | 📤 **Upload de Excel** | Interface drag-and-drop para importar planilhas com números de processos |
 | 📋 **Colar Lista** | Cole uma lista copiada do Excel e clique direto em consultar |
 | ✅ **Verificação das Entradas** | Antes de consultar, confere se cada número tem 9 dígitos e identifica repetidos; nada é descartado em silêncio |
-| 🔍 **Consulta em Lote** | Processamento automático de múltiplos processos com barra de progresso |
+| 🔍 **Consulta em Lote** | Processamento automático de múltiplos processos, com barra de progresso e tempo restante |
+| 🔁 **Sessão Renovada Sozinha** | A sessão anônima do INPI expira em cerca de 5 minutos; o app abre outra a cada 4 minutos, sem interromper o lote |
 | 🚦 **Status com Nome** | Cada processo recebe ícone e categoria (ex.: ®️ Registro em vigor), com resumo por categoria |
 | 📊 **Exportação Excel/CSV** | Download dos resultados em formatos prontos para uso |
 | 📋 **Copiar Tabela** | Copia todos os resultados para colar direto em uma planilha ou e-mail, sem baixar arquivo |
@@ -66,18 +67,21 @@ graph TD
     B --> C{Conexão direta com o INPI?}
     C -->|Sim, no Brasil| D[🔐 Sessão direta no BuscaWeb]
     C -->|Não, bloqueio geográfico| E[🌎 Relay em São Paulo]
-    D --> F[🔄 Loop de Consultas]
-    E --> F
-    F --> G[🔍 Parse HTML da Resposta]
-    G --> H[📊 Extração de Campos]
-    H --> I{Mais processos?}
-    I -->|Sim| F
+    D --> S{Sessão com mais de 4 min?}
+    E --> S
+    S -->|Sim| R[🔁 Abre sessão nova]
+    S -->|Não| F[🔍 Consulta o processo]
+    R --> F
+    F --> G[📊 Extração de Campos do HTML]
+    G --> I{Mais processos?}
+    I -->|Sim| T[⏱️ Intervalo de 1 a 5 s]
+    T --> S
     I -->|Não| J[🚦 Classificação de Status]
     J --> K[📋 Tabela + Resumo por Status]
     K --> L[💾 Excel / CSV / Copiar]
 ```
 
-Entradas inválidas ou repetidas **não são consultadas**, mas aparecem na tabela final, na mesma linha da entrada, com o motivo na coluna `observacao`.
+Entradas inválidas ou repetidas **não são consultadas**, mas aparecem na tabela final, na mesma linha da entrada, com o motivo na coluna `observacao`. Se a sessão expirar antes dos 4 minutos, o motor percebe o redirecionamento para a tela de login, abre outra sessão e repete o mesmo processo.
 
 ---
 
@@ -129,7 +133,9 @@ INPedia/
 ├── 🔍 inpi_parser.py              # Parser HTML dos resultados
 ├── 📋 requirements.txt            # Dependências Python
 ├── 📖 README.md                   # Documentação
+├── ⚖️ LICENSE                     # Licença MIT
 │
+├── 📂 .devcontainer/             # Ambiente pronto para o GitHub Codespaces
 ├── 📂 .streamlit/
 │   ├── ⚙️ config.toml             # Tema e configurações Streamlit
 │   └── 🔑 secrets.toml.example    # Modelo de configuração do relay
@@ -219,7 +225,7 @@ O Supabase é usado apenas como relay: uma função, sem banco de dados.
 2. **Configure e consulte**
    - ⚙️ Escolha o intervalo entre processos (padrão: 1 s) e confira o tempo estimado
    - 🔘 Clique em **"CONSULTAR PROCESSOS"** (pode clicar logo depois de colar)
-   - 📊 Acompanhe o progresso pela barra de carregamento
+   - 📊 Acompanhe o progresso pela barra de carregamento e pelo tempo restante
 
 3. **Use os resultados**
    - 🚦 Veja o resumo por status logo acima da tabela
@@ -239,7 +245,9 @@ O Supabase é usado apenas como relay: uma função, sem banco de dados.
 
 | Versão | Principais mudanças |
 |--------|---------------------|
-| **1.2** | Intervalo entre processos com opções de 1 a 5 s (padrão 1 s, abaixo do limite de bloqueio da RPI nº 2728) e estimativa do tempo total; renovação automática da sessão anônima do INPI, que expira em cerca de 5 minutos |
+| **1.2.1** | Estimativa de tempo recalibrada com medições reais (1,6 s de resposta por processo); README revisado |
+| **1.2** | Intervalo entre processos com opções de 1 a 5 s (padrão 1 s, dentro do limite de bloqueio da RPI nº 2728), estimativa do tempo total e tempo restante durante a consulta; renovação automática da sessão anônima do INPI, que expira em cerca de 5 minutos |
+| **1.1.1** | Falta de resposta do INPI no meio do lote passa a ser tratada como instabilidade, com nova tentativa |
 | **1.1** | Relay em São Paulo para hospedagem fora do Brasil; verificação das entradas (9 dígitos e repetidos); mensagens de erro com diagnóstico; status com nome e resumo por categoria; botão "Copiar tabela"; correção da leitura da classe de Nice e da especificação; validação do certificado do INPI |
 | **1.0** | Consulta em lote, extração dos campos, semáforo de status e exportação Excel/CSV |
 
@@ -276,7 +284,7 @@ Os dados consultados são públicos e provenientes da [Pesquisa Pública do INPI
 
 ### 🚀 Access the application: **[inpedia.streamlit.app](https://inpedia.streamlit.app/)**
 
-> 💡 **Recommended:** run INPédia on your own computer (see the [Installation Guide](#-installation-guide)). Lookups then go straight to INPI, with no intermediary, and run faster.
+> 💡 **Recommended:** run INPédia on your own computer (see the [Installation Guide](#-installation-guide)). Lookups then go straight to INPI, with no intermediary, and do not depend on the relay. The hosted app also works and was even faster in our tests, because the relay runs in a data center in São Paulo.
 
 ---
 
@@ -303,7 +311,8 @@ Automate the verification of trademark protocol statuses registered at INPI, eli
 | 📤 **Excel Upload** | Drag-and-drop interface for importing spreadsheets with process numbers |
 | 📋 **Paste List** | Paste a list copied from Excel and click query right away |
 | ✅ **Input Check** | Before querying, checks that each number has 9 digits and flags duplicates; nothing is silently dropped |
-| 🔍 **Batch Query** | Automatic processing of multiple processes with progress bar |
+| 🔍 **Batch Query** | Automatic processing of multiple processes, with progress bar and time remaining |
+| 🔁 **Automatic Session Renewal** | INPI's anonymous session expires after about 5 minutes; the app opens a new one every 4 minutes without stopping the batch |
 | 🚦 **Named Status** | Each process gets an icon and a category (e.g., ®️ Registro em vigor), with a summary per category |
 | 📊 **Excel/CSV Export** | Download results in ready-to-use formats |
 | 📋 **Copy Table** | Copies all results to paste straight into a spreadsheet or email, with no download |
@@ -321,18 +330,21 @@ graph TD
     B --> C{Direct connection to INPI?}
     C -->|Yes, in Brazil| D[🔐 Direct BuscaWeb session]
     C -->|No, geographic block| E[🌎 São Paulo relay]
-    D --> F[🔄 Query Loop]
-    E --> F
-    F --> G[🔍 HTML Response Parsing]
-    G --> H[📊 Field Extraction]
-    H --> I{More processes?}
-    I -->|Yes| F
+    D --> S{Session older than 4 min?}
+    E --> S
+    S -->|Yes| R[🔁 Open a new session]
+    S -->|No| F[🔍 Query the process]
+    R --> F
+    F --> G[📊 Field Extraction from HTML]
+    G --> I{More processes?}
+    I -->|Yes| T[⏱️ Interval of 1 to 5 s]
+    T --> S
     I -->|No| J[🚦 Status Classification]
     J --> K[📋 Table + Status Summary]
     K --> L[💾 Excel / CSV / Copy]
 ```
 
-Invalid or duplicate entries are **not queried**, but they appear in the final table, on the same row as the input, with the reason in the `observacao` column.
+Invalid or duplicate entries are **not queried**, but they appear in the final table, on the same row as the input, with the reason in the `observacao` column. If the session expires before 4 minutes, the engine detects the redirect to the login screen, opens a new session, and retries the same process.
 
 ---
 
@@ -384,7 +396,9 @@ INPedia/
 ├── 🔍 inpi_parser.py              # HTML results parser
 ├── 📋 requirements.txt            # Python dependencies
 ├── 📖 README.md                   # Documentation
+├── ⚖️ LICENSE                     # MIT License
 │
+├── 📂 .devcontainer/             # Ready-to-use GitHub Codespaces environment
 ├── 📂 .streamlit/
 │   ├── ⚙️ config.toml             # Streamlit theme and settings
 │   └── 🔑 secrets.toml.example    # Relay configuration template
@@ -474,7 +488,7 @@ Supabase is used only as a relay: one function, no database.
 2. **Configure and query**
    - ⚙️ Choose the interval between lookups (default: 1 s) and check the estimated time
    - 🔘 Click **"CONSULTAR PROCESSOS"** (you can click right after pasting)
-   - 📊 Track progress via the loading bar
+   - 📊 Track progress via the loading bar and the time remaining
 
 3. **Use the results**
    - 🚦 See the status summary right above the table
@@ -494,7 +508,9 @@ Supabase is used only as a relay: one function, no database.
 
 | Version | Main changes |
 |---------|--------------|
-| **1.2** | Interval between lookups from 1 to 5 s (1 s by default, below the blocking threshold in RPI no. 2728) with an estimate of the total time; automatic renewal of INPI's anonymous session, which expires after about 5 minutes |
+| **1.2.1** | Time estimate recalibrated with real measurements (1.6 s of response per process); README reviewed |
+| **1.2** | Interval between lookups from 1 to 5 s (1 s by default, within the blocking threshold in RPI no. 2728), total time estimate, and time remaining during the lookup; automatic renewal of INPI's anonymous session, which expires after about 5 minutes |
+| **1.1.1** | A connection timeout in the middle of a batch is treated as INPI instability, with a new attempt |
 | **1.1** | São Paulo relay for hosting outside Brazil; input check (9 digits and duplicates); error messages with diagnosis; named status and per-category summary; "Copiar tabela" button; fixed Nice class and specification parsing; INPI certificate validation |
 | **1.0** | Batch lookup, field extraction, status semaphore, and Excel/CSV export |
 
